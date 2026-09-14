@@ -85,9 +85,49 @@ class Research(BaseModel):
     unlocks: list[str] = Field(default_factory=list)
 
 
+# Mineshaft specific specialization
+class ExtractorDepthOutput(BaseModel):
+    item_id: str
+    item_name: str
+    wiki_slug: Optional[str] = None
+    rate_per_s: float
+ 
+ 
+class ExtractorDepthProfile(BaseModel):
+    depth_m: float
+    power_mf_per_s: Optional[float] = None
+    cycle_seconds: Optional[float] = None
+    outputs: list[ExtractorDepthOutput] = Field(default_factory=list)
+ 
+ 
+class ExtractorConsumable(BaseModel):
+    item_id: Optional[str] = None
+    item_name: str
+    mandatory: bool
+    rate_per_s: Optional[float] = None # None where the real rate depends on an unmodeled formula (e.g. Drill Heads' durability-loss math) rather than being a flat, stated number
+    affects_yield: bool = False # True only for consumables that change the OUTPUT rate itself (e.g. Machine Oil's +10%). False for things that only affect a separate
+    # mechanic like durability/replacement frequency.
+    note: Optional[str] = None # free text for anything not safely reduced to a single number -- prefer this over guessing
+ 
+ 
+class VariableExtractorProfile(BaseModel):
+    """
+    For extractors whose output isn't a fixed recipe but depends on a
+    parameter (currently just depth, for Mineshaft Drill) -- doesn't fit the
+    normal Recipe shape (N inputs -> M outputs every Z seconds), so it's kept
+    as its own thing rather than forced into Recipe.
+    """
+    machine_id: str
+    depth_profiles: list[ExtractorDepthProfile] = Field(default_factory=list)
+    consumables: list[ExtractorConsumable] = Field(default_factory=list)
+    unmodeled_notes: list[str] = Field(default_factory=list)  # e.g. the unused 5th fluid port
+
+# End of the mineshaft specific stuff
+
 class Database(BaseModel):
     """The full normalized database."""
     items: dict[str, Item] = Field(default_factory=dict)
     machines: dict[str, Machine] = Field(default_factory=dict)
     recipes: dict[str, Recipe] = Field(default_factory=dict)
     research: dict[str, Research] = Field(default_factory=dict)
+    variable_extractors: dict[str, VariableExtractorProfile] = Field(default_factory=dict)

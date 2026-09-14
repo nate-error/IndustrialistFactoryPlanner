@@ -19,8 +19,10 @@ from parse_items_list import parse_items_list
 from parse_machine_gallery import parse_gallery
 from parse_recipes import parse_production_wrapper
 from parse_machine_infobox import parse_machine_infobox
+from parse_extractor_depth_table import parse_extractor_depth_tables
+from variable_extractors_data import KNOWN_VARIABLE_EXTRACTORS, MINESHAFT_DRILL_CONSUMABLES, MINESHAFT_DRILL_NOTES
 from Core.discover_machines import discover_machines
-from Core.schemas import Database, Item, Machine, MachineProduct
+from Core.schemas import Database, Item, Machine, MachineProduct, VariableExtractorProfile, ExtractorDepthProfile, ExtractorDepthOutput
 
 BASE = "https://industrialist.miraheze.org"
 
@@ -102,6 +104,30 @@ def scrape_machine_page(machine_meta: dict, db: Database) -> None:
         else:
             db.recipes[r.id] = r
             db.machines[machine_meta["wiki_slug"]].recipe_ids.append(r.id)
+
+    # Mineshaft specification
+    if machine_meta["wiki_slug"] in KNOWN_VARIABLE_EXTRACTORS:
+        depth_rows = parse_extractor_depth_tables(html)
+        depth_profiles = [
+            ExtractorDepthProfile(
+                depth_m=row["depth_m"],
+                power_mf_per_s=row["power_mf_per_s"],
+                cycle_seconds=row["cycle_seconds"],
+                outputs=[ExtractorDepthOutput(**o) for o in row["outputs"]],
+            )
+            for row in depth_rows
+        ]
+        # Consumables are currently hand authored per machine (see variable_extractors_data.py for why); this dict lookup is the only place that machine specific choice happens.
+        consumables = MINESHAFT_DRILL_CONSUMABLES if machine_meta["wiki_slug"] == "Mineshaft_Drill" else []
+        notes = MINESHAFT_DRILL_NOTES if machine_meta["wiki_slug"] == "Mineshaft_Drill" else []
+ 
+        db.variable_extractors[machine_meta["wiki_slug"]] = VariableExtractorProfile(
+            machine_id=machine_meta["wiki_slug"],
+            depth_profiles=depth_profiles,
+            consumables=consumables,
+            unmodeled_notes=notes,
+        )
+
 
 
 def scrape_item_page(item_meta: dict, db: Database) -> None:
