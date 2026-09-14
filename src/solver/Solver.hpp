@@ -44,7 +44,7 @@ namespace Industrialist {
             BuildProducerIndex();
         }
 
-        SolveResult Solve(const std::string& target_item_id, double target_rate_per_s);
+        SolveResult Solve(const std::string& targetItemId, double targetRatePerSeconds);
 
     private:
         const Database& db_;
@@ -52,9 +52,9 @@ namespace Industrialist {
 
         void BuildProducerIndex();
 
-        std::optional<std::string> PickRecipeFor(const std::string& item_id, size_t& alt_count);
+        std::optional<std::string> PickRecipeFor(const std::string& itemId, double targetRatePerSeconds, size_t& altCount);
 
-        ResolvedNode Resolve(const std::string& item_id, double rate_per_s, std::unordered_set<std::string>& path, std::vector<std::string>& warnings);
+        ResolvedNode Resolve(const std::string& itemId, double ratePerSeconds, std::unordered_set<std::string>& path, std::vector<std::string>& warnings);
 
         void Aggregate(const ResolvedNode& node, SolveResult& result);
     };

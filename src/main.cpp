@@ -14,13 +14,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::string db_path = argv[1];
-    std::string item_query = argv[2];
-    double rate_per_min = std::stod(argv[3]);
+    std::string dbPath = argv[1];
+    std::string itemQuery = argv[2];
+    double ratePerMin = std::stod(argv[3]);
 
-    std::ifstream in(db_path);
+    std::ifstream in(dbPath);
     if (!in) {
-        std::cerr << "Could not open database file: " << db_path << "\n";
+        std::cerr << "Could not open database file: " << dbPath << "\n";
         return 1;
     }
 
@@ -36,15 +36,15 @@ int main(int argc, char** argv) {
     Database db = LoadDatabase(root);
     std::cout << "Loaded " << db.items.size() << " items, " << db.machines.size() << " machines, " << db.recipes.size() << " recipes.\n";
 
-    auto item_id = ResolveItemID(db, item_query);
-    if (!item_id) {
-        std::cerr << "No item found matching '" << item_query << "'\n";
+    std::optional<std::string> itemId = ResolveItemID(db, itemQuery);
+    if (!itemId) {
+        std::cerr << "No item found matching '" << itemQuery << "'\n";
         return 1;
     }
 
     Solver solver(db);
-    SolveResult result = solver.Solve(*item_id, rate_per_min / 60.0);
+    SolveResult result = solver.Solve(*itemId, ratePerMin / 60.0);
 
-    PrintReport(db.items.at(*item_id).name, rate_per_min, result);
+    PrintReport(db.items.at(*itemId).name, ratePerMin, result);
     return 0;
 }

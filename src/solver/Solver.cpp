@@ -1,11 +1,13 @@
 #include "Solver.hpp"
 
+#include "utils/Utils.hpp"
+
 namespace Industrialist {
 
-    SolveResult Solver::Solve(const std::string& target_item_id, double target_rate_per_s) {
+    SolveResult Solver::Solve(const std::string& targetItemId, double targetRatePerSeconds) {
         SolveResult result;
         std::unordered_set<std::string> path; // Current DFS ancestors, for cycle detection
-        result.root = Resolve(target_item_id, target_rate_per_s, path, result.warnings);
+        result.root = Resolve(targetItemId, targetRatePerSeconds, path, result.warnings);
         Aggregate(result.root, result);
 
         std::sort(result.required_research.begin(), result.required_research.end());
@@ -28,60 +30,83 @@ namespace Industrialist {
         }
     }
 
-    std::optional<std::string> Solver::PickRecipeFor(const std::string& item_id, size_t& alt_count) {
-        auto it = producers_.find(item_id);
+    std::optional<std::string> Solver::PickRecipeFor(const std::string& itemId, double targetRatePerSeconds, size_t& altCount) {
+        auto it = producers_.find(itemId);
 
         if (it == producers_.end() || it->second.empty()) {
-            alt_count = 0;
+            altCount = 0;
             return std::nullopt;
         }
 
-        alt_count = it->second.size() - 1;
+        altCount = it->second.size() - 1;
 
-        return it->second.front();
+        std::string bestRecipeId;
+        double lowestScore = std::numeric_limits<double>::max();
+
+        for (const auto& recipeId : it->second) {
+            auto recipeIterator = db_.recipes.find(recipeId);
+
+            if (recipeIterator == db_.recipes.end())
+                continue;
+
+            const Recipe& recipe = recipeIterator->second;
+
+            double score = CalculateRecipeScore(recipe, itemId, targetRatePerSeconds, db_);
+
+            if (score < lowestScore) {
+                lowestScore = score;
+                bestRecipeId = recipe.id;
+            }
+        }
+        // Fallback to first recipe if no valid duration/rate was calculated
+        if (bestRecipeId.empty()) {
+            return it->second.front();
+        }
+
+        return bestRecipeId;
     }
 
-    ResolvedNode Solver::Resolve(const std::string& item_id, double rate_per_s, std::unordered_set<std::string>& path, std::vector<std::string>& warnings) {
+    ResolvedNode Solver::Resolve(const std::string& itemId, double ratePerSeconds, std::unordered_set<std::string>& path, std::vector<std::string>& warnings) {
         ResolvedNode node;
-        node.item_id = item_id;
-        node.rate_per_s = rate_per_s;
+        node.item_id = itemId;
+        node.rate_per_s = ratePerSeconds;
 
-        auto item_it = db_.items.find(item_id);
-        node.item_name = (item_it != db_.items.end()) ? item_it->second.name : item_id;
+        auto itemIterator = db_.items.find(itemId);
+        node.item_name = (itemIterator != db_.items.end()) ? itemIterator->second.name : itemId;
 
-        if (path.count(item_id)) {
+        if (path.count(itemId)) {
             node.is_cycle_break = true;
-            warnings.push_back("Cycle detected: '" + item_id + "' is its own ancestor in this chain -- stopped recursing here (Phase 6: make production loops).");
+            warnings.push_back("Cycle detected: '" + itemId + "' is its own ancestor in this chain -- stopped recursing here (Phase 6: make production loops).");
             return node;
         }
 
-        size_t alt_count = 0;
-        auto recipe_id_opt = PickRecipeFor(item_id, alt_count);
+        size_t altCount = 0;
+        std::optional<std::string> recipeIdOpt = PickRecipeFor(itemId, ratePerSeconds, altCount);
 
-        if (!recipe_id_opt) {
+        if (!recipeIdOpt) {
             node.is_raw_resource = true;
             return node;
         }
 
-        const Recipe& recipe = db_.recipes.at(*recipe_id_opt);
+        const Recipe& recipe = db_.recipes.at(*recipeIdOpt);
         node.recipe_id = recipe.id;
         node.machine_id = recipe.machine_slug;
-        node.alternative_recipe_count = alt_count;
+        node.alternative_recipe_count = altCount;
 
         // Find how much of item_id this recipe produces per run, and over what duration, to get this recipe's per machine output rate
-        double output_qty_per_run = 0.0;
+        double outputQtyPerRun = 0.0;
         for (const auto& out : recipe.outputs) {
-            if (out.item_id == item_id) {
-                output_qty_per_run = out.quantity;
+            if (out.item_id == itemId) {
+                outputQtyPerRun = out.quantity;
                 break;
             }
         }
 
         double duration = recipe.duration_seconds.value_or(0.0);
-        double per_machine_rate = (duration > 0.0) ? (output_qty_per_run / duration) : 0.0;
+        double perMachineRate = (duration > 0.0) ? (outputQtyPerRun / duration) : 0.0;
 
-        if (per_machine_rate <= 0.0) {
-            warnings.push_back("Recipe '" + recipe.id + "' has no usable duration/output for '" + item_id + "' -- can't compute machine count, treating as raw resource.");
+        if (perMachineRate <= 0.0) {
+            warnings.push_back("Recipe '" + recipe.id + "' has no usable duration/output for '" + itemId + "' -- can't compute machine count, treating as raw resource.");
 
             node.is_raw_resource = true;
             node.recipe_id.reset();
@@ -89,19 +114,19 @@ namespace Industrialist {
             return node;
         }
 
-        node.machines_theoretical = rate_per_s / per_machine_rate;
+        node.machines_theoretical = ratePerSeconds / perMachineRate;
         node.machines_actual = static_cast<int>(std::ceil(node.machines_theoretical - 1e-9));
         if (node.machines_actual < 1)
             node.machines_actual = 1;
 
         // Propagate
-        path.insert(item_id);
+        path.insert(itemId);
         for (const auto& in : recipe.inputs) {
-            double input_rate = node.machines_theoretical * (in.quantity / duration);
-            node.children.push_back(Resolve(in.item_id, input_rate, path, warnings));
+            double inputRate = node.machines_theoretical * (in.quantity / duration);
+            node.children.push_back(Resolve(in.item_id, inputRate, path, warnings));
         }
 
-        path.erase(item_id);
+        path.erase(itemId);
 
         return node;
     }
