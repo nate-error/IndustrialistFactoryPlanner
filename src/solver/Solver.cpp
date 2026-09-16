@@ -1,5 +1,4 @@
 #include "Solver.hpp"
-
 #include "utils/Utils.hpp"
 
 namespace Industrialist {
@@ -16,15 +15,93 @@ namespace Industrialist {
         return result;
     }
 
+    const Recipe* Solver::GetRecipe(const std::string& recipeId) const {
+        auto it = db_.recipes.find(recipeId);
+        if (it != db_.recipes.end()) {
+            return &it->second;
+        }
 
+        auto synthIt = synthetic_recipes_.find(recipeId);
+        if (synthIt != synthetic_recipes_.end()) {
+            return &synthIt->second;
+        }
+
+        return nullptr;
+    }
 
     void Solver::BuildProducerIndex() {
+        producers_.clear();
+        synthetic_recipes_.clear();
+
+        // Index standard recipes
         for (const auto& [recipe_id, recipe] : db_.recipes) {
             for (const auto& out : recipe.outputs) {
                 producers_[out.item_id].push_back(recipe_id);
             }
         }
 
+        // Synthesize recipes for Variable Extractors (like: Mineshaft Drill)
+        for (const auto& [ve_id, ve] : db_.variable_extractors) {
+            std::string machineName = ve.machine_id;
+            if (db_.machines.count(ve.machine_id)) {
+                machineName = db_.machines.at(ve.machine_id).name;
+            }
+
+            for (const auto& dp : ve.depth_profiles) {
+                std::string recipeId = "ve:" + ve.machine_id + ":depth_" + std::to_string(static_cast<int>(dp.depth_m));
+
+                Recipe syntheticRecipe;
+                syntheticRecipe.id = recipeId;
+                syntheticRecipe.machine_name = machineName;
+                syntheticRecipe.machine_slug = ve.machine_id;
+
+                double duration = dp.cycle_seconds.value_or(1.0);
+                if (duration <= 0.0) duration = 1.0;
+                syntheticRecipe.duration_seconds = duration;
+
+                // Power rate from depth profile or machine default
+                if (dp.power_mf_per_s.has_value()) {
+                    syntheticRecipe.power_rate_mf_per_s = dp.power_mf_per_s;
+                }
+                else if (db_.machines.count(ve.machine_id) && db_.machines.at(ve.machine_id).power_input_mf_per_s) {
+                    syntheticRecipe.power_rate_mf_per_s = db_.machines.at(ve.machine_id).power_input_mf_per_s;
+                }
+
+                // Mandatory consumables as recipe inputs
+                for (const auto& cons : ve.consumables) {
+                    if (cons.mandatory) {
+                        RecipeIngredient ing;
+                        ing.item_id = cons.item_id.value_or("");
+                        if (ing.item_id.empty() && !cons.item_name.empty()) {
+                            auto resolved = ResolveItemID(db_, cons.item_name);
+                            if (resolved) ing.item_id = *resolved;
+                        }
+                        ing.item_name = cons.item_name;
+                        double rate = cons.rate_per_s.value_or(0.0);
+                        ing.quantity = rate * duration;
+
+                        if (!ing.item_id.empty()) {
+                            syntheticRecipe.inputs.push_back(ing);
+                        }
+                    }
+                }
+
+                // Extractor outputs
+                for (const auto& out : dp.outputs) {
+                    RecipeIngredient ing;
+                    ing.item_id = out.item_id;
+                    ing.item_name = out.item_name;
+                    ing.quantity = out.rate_per_s * duration;
+
+                    syntheticRecipe.outputs.push_back(ing);
+                    producers_[out.item_id].push_back(recipeId);
+                }
+
+                synthetic_recipes_[recipeId] = syntheticRecipe;
+            }
+        }
+
+        // Sort for deterministic iteration order
         for (auto& [item_id, ids] : producers_) {
             std::sort(ids.begin(), ids.end());
         }
@@ -44,13 +121,11 @@ namespace Industrialist {
         double lowestScore = std::numeric_limits<double>::max();
 
         for (const auto& recipeId : it->second) {
-            auto recipeIterator = db_.recipes.find(recipeId);
-
-            if (recipeIterator == db_.recipes.end())
+            const Recipe* recipePtr = GetRecipe(recipeId);
+            if (!recipePtr)
                 continue;
 
-            const Recipe& recipe = recipeIterator->second;
-
+            const Recipe& recipe = *recipePtr;
             double score = CalculateRecipeScore(recipe, itemId, targetRatePerSeconds, db_);
 
             if (score < lowestScore) {
@@ -58,7 +133,7 @@ namespace Industrialist {
                 bestRecipeId = recipe.id;
             }
         }
-        // Fallback to first recipe if no valid duration/rate was calculated
+
         if (bestRecipeId.empty()) {
             return it->second.front();
         }
@@ -88,12 +163,25 @@ namespace Industrialist {
             return node;
         }
 
-        const Recipe& recipe = db_.recipes.at(*recipeIdOpt);
+        const Recipe* recipePtr = GetRecipe(*recipeIdOpt);
+        if (!recipePtr) {
+            node.is_raw_resource = true;
+            return node;
+        }
+
+        const Recipe& recipe = *recipePtr;
         node.recipe_id = recipe.id;
         node.machine_id = recipe.machine_slug;
         node.alternative_recipe_count = altCount;
 
-        // Find how much of item_id this recipe produces per run, and over what duration, to get this recipe's per machine output rate
+        // Propagate unmodeled notes if a variable extractor profile was chosen
+        if (recipe.machine_slug && db_.variable_extractors.count(*recipe.machine_slug)) {
+            const auto& ve = db_.variable_extractors.at(*recipe.machine_slug);
+            for (const auto& note : ve.unmodeled_notes) {
+                warnings.push_back("Variable extractor '" + ve.machine_id + "' note: " + note);
+            }
+        }
+
         double outputQtyPerRun = 0.0;
         for (const auto& out : recipe.outputs) {
             if (out.item_id == itemId) {
@@ -119,13 +207,12 @@ namespace Industrialist {
         if (node.machines_actual < 1)
             node.machines_actual = 1;
 
-        // Propagate
+        // Propagate recursively through inputs
         path.insert(itemId);
         for (const auto& in : recipe.inputs) {
             double inputRate = node.machines_theoretical * (in.quantity / duration);
             node.children.push_back(Resolve(in.item_id, inputRate, path, warnings));
         }
-
         path.erase(itemId);
 
         return node;
@@ -144,9 +231,9 @@ namespace Industrialist {
         if (node.recipe_id) {
             result.machines_by_recipe[*node.recipe_id] += node.machines_actual;
 
-            const Recipe& recipe = db_.recipes.at(*node.recipe_id);
-            if (recipe.power_rate_mf_per_s) {
-                result.total_power_mf_per_s += node.machines_actual * (*recipe.power_rate_mf_per_s);
+            const Recipe* recipePtr = GetRecipe(*node.recipe_id);
+            if (recipePtr && recipePtr->power_rate_mf_per_s) {
+                result.total_power_mf_per_s += node.machines_actual * (*recipePtr->power_rate_mf_per_s);
             }
 
             if (node.machine_id && db_.machines.count(*node.machine_id)) {

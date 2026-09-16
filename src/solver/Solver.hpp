@@ -48,6 +48,7 @@ namespace Industrialist {
 
     private:
         const Database& db_;
+        std::unordered_map<std::string, Recipe> synthetic_recipes_;
         std::unordered_map<std::string, std::vector<std::string>> producers_; // item_id -> recipe_ids that output it
 
         void BuildProducerIndex();
@@ -57,6 +58,8 @@ namespace Industrialist {
         ResolvedNode Resolve(const std::string& itemId, double ratePerSeconds, std::unordered_set<std::string>& path, std::vector<std::string>& warnings);
 
         void Aggregate(const ResolvedNode& node, SolveResult& result);
+
+        const Recipe* GetRecipe(const std::string& recipeId) const;
     };
 
 } // namespace Industrialist

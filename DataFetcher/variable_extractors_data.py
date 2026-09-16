@@ -15,15 +15,17 @@ KNOWN_VARIABLE_EXTRACTORS = {"Mineshaft_Drill"}
 
 MINESHAFT_DRILL_CONSUMABLES = [
     ExtractorConsumable(
-        item_id="drill-heads",
-        item_name="Drill Heads",
-        mandatory=True,
-        rate_per_s=None,  # depends on the durability-loss formula (drill head material x acid choice x depth), not modeled; get the actual Drill-Durability-Multiplier and
-        # Acid-Durability-Multiplier TABLE HTML (not prose) to compute this properly later.
-        affects_yield=False,
-        note="Consumption rate depends on depth, drill head material (Copper/Iron/Steel/Tungsten), and acid choice via a durability-"
-             "loss formula not yet modeled here, see wiki 'Mineshaft Drill' page, 'Durability Loss Rate' formula.",
-    ),
+    item_id="drill-heads",
+    item_name="Drill Heads",
+    mandatory=True,
+    rate_per_s=1.0 / 500.0,  # ~0.002/s, empirical estimate for Steel Drill Head + Sulfuric/Hydrochloric Acid, amortized over a full dig-until-death + retract-to-surface
+    # + redescend cycle. NOT depth-adjusted, 500s is a single ballpark figure, not derived from the durability formula. Flat per-machine rate, independent of target ore
+    # throughput (see note above). This will probably overshoot by a lot but better have more than less, at least until i do the proper calculations.
+    affects_yield=False,
+    note="~500s between replacements for Steel Drill Head + Sulfuric/Hydrochloric Acid (most common setup, Tungsten too expensive, Iron less durable than Steel for"
+    "somewhat similar build cost from what i could see). Not depth adjusted; real rate follows the wiki's Durability Loss Rate formula (Drill Multiplier x Acid Multiplier"
+    "x Resource Modifier x Speed Modifier), which isn't fully modeled here yet."
+),
     # "Water" here is one of five interchangeable choices (Water or one of four Acids), the wiki explicitly calls this "Water/most Acids", i.e.
     # pick exactly one. Consumption rates ARE plainly stated in prose, so these are trustworthy despite being hand-typed.
     ExtractorConsumable(item_id="water", item_name="Water", mandatory=False, rate_per_s=10.0, affects_yield=False,

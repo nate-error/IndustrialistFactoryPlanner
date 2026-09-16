@@ -8,7 +8,7 @@
 
 namespace Industrialist {
 
-    constexpr double MACHINE_COUNT_PENALTY = 5.0;
+    constexpr double MACHINE_COUNT_PENALTY = 2.0; // Power for the scaling of the machine counts penalty (default to a simple exponential, with machines needed^2)
     constexpr double BYPRODUCT_PENALTY = 5.0;
     constexpr double RESIDUE_PENALTY = 100.0;
     constexpr double INPUT_COMPLEXITY_PENALTY = 5.0;
@@ -64,7 +64,7 @@ namespace Industrialist {
         // Machine Count / Footprint Penalty
         // Higher weight forces solver to favor space efficient machines over massive arrays (tier 1 machines would always win otherwise)
         
-        double machineCountPenalty = machinesNeeded * MACHINE_COUNT_PENALTY;
+        double machineCountPenalty = pow(machinesNeeded, MACHINE_COUNT_PENALTY);
 
         // Structural Complexity Penalties
         // Penalize secondary outputs (extra outputs add unwanted transport/clogging complexity)
@@ -73,7 +73,7 @@ namespace Industrialist {
         // Extra penalty for unusable or difficult residue items
         double residuePenalty = 0.0;
         for (const auto& byproduct : recipe.outputs) {
-            if (byproduct.item_name == "residue") {
+            if (byproduct.item_name == "Residue") {
                 residuePenalty += RESIDUE_PENALTY;
             }
         }

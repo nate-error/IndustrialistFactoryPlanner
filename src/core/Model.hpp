@@ -123,6 +123,61 @@ namespace Industrialist {
         return r;
     }
 
+    // -- Start of Mineshaft specific functions --
+
+    inline ExtractorDepthOutput ParseExtractorDepthOutput(const json& j) {
+        ExtractorDepthOutput o;
+        o.item_id = j.value("item_id", "");
+        o.item_name = j.value("item_name", "");
+        o.wiki_slug = GetOpt<std::string>(j, "wiki_slug");
+        o.rate_per_s = j.value("rate_per_s", 0.0);
+        return o;
+    }
+
+    inline ExtractorDepthProfile ParseExtractorDepthProfile(const json& j) {
+        ExtractorDepthProfile p;
+        p.depth_m = j.value("depth_m", 0.0);
+        p.power_mf_per_s = GetOpt<double>(j, "power_mf_per_s");
+        p.cycle_seconds = GetOpt<double>(j, "cycle_seconds");
+
+        if (j.contains("outputs"))
+            for (const auto& o : j.at("outputs"))
+                p.outputs.push_back(ParseExtractorDepthOutput(o));
+
+        return p;
+    }
+
+    inline ExtractorConsumable ParseExtractorConsumable(const json& j) {
+        ExtractorConsumable c;
+        c.item_id = GetOpt<std::string>(j, "item_id");
+        c.item_name = j.value("item_name", "");
+        c.mandatory = j.value("mandatory", false);
+        c.rate_per_s = GetOpt<double>(j, "rate_per_s");
+        c.affects_yield = j.value("affects_yield", false);
+        c.note = GetOpt<std::string>(j, "note");
+        return c;
+    }
+
+    inline VariableExtractorProfile ParseVariableExtractorProfile(const json& j) {
+        VariableExtractorProfile p;
+        p.machine_id = j.value("machine_id", "");
+        if (j.contains("depth_profiles"))
+            for (const auto& d : j.at("depth_profiles"))
+                p.depth_profiles.push_back(ParseExtractorDepthProfile(d));
+
+        if (j.contains("consumables"))
+            for (const auto& c : j.at("consumables"))
+                p.consumables.push_back(ParseExtractorConsumable(c));
+
+        if (j.contains("unmodeled_notes"))
+            for (const auto& n : j.at("unmodeled_notes"))
+                p.unmodeled_notes.push_back(n.get<std::string>());
+
+        return p;
+    }
+
+    // -- End of Mineshaft specific functions --
+
     inline Database LoadDatabase(const json& root) {
         Database db;
         if (root.contains("items"))
@@ -140,6 +195,10 @@ namespace Industrialist {
         if (root.contains("research"))
             for (auto& [id, v] : root.at("research").items())
                 db.research[id] = ParseResearch(v);
+
+        if (root.contains("variable_extractors"))
+            for (auto& [id, v] : root.at("variable_extractors").items())
+                db.variable_extractors[id] = ParseVariableExtractorProfile(v);
 
         return db;
     }

@@ -73,10 +73,44 @@ namespace Industrialist {
         std::vector<std::string> unlocks;
     };
 
+    // -- Start of Mineshaft specific types --
+
+    struct ExtractorDepthOutput {
+        std::string item_id;
+        std::string item_name;
+        std::optional<std::string> wiki_slug;
+        double rate_per_s = 0.0;
+    };
+
+    struct ExtractorDepthProfile {
+        double depth_m = 0.0;
+        std::optional<double> power_mf_per_s;
+        std::optional<double> cycle_seconds;
+        std::vector<ExtractorDepthOutput> outputs;
+    };
+
+    struct ExtractorConsumable {
+        std::optional<std::string> item_id;
+        std::string item_name;
+        bool mandatory = false;
+        std::optional<double> rate_per_s; // nullopt where the real rate depends on an unmodeled formula (e.g. Drill Heads)
+        bool affects_yield = false; // true only for things that change output rate
+        std::optional<std::string> note;
+    };
+
+    struct VariableExtractorProfile {
+        std::string machine_id;
+        std::vector<ExtractorDepthProfile> depth_profiles;
+        std::vector<ExtractorConsumable> consumables;
+        std::vector<std::string> unmodeled_notes;
+    };
+    // -- End of Mineshaft specific types --
+
     struct Database {
         std::unordered_map<std::string, Item> items;
         std::unordered_map<std::string, Machine> machines;
         std::unordered_map<std::string, Recipe> recipes;
         std::unordered_map<std::string, Research> research;
+        std::unordered_map<std::string, VariableExtractorProfile> variable_extractors;
     };
 } // namespace Industrialist
