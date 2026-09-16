@@ -40,7 +40,7 @@ namespace Industrialist {
             }
         }
 
-        // Synthesize recipes for Variable Extractors (like: Mineshaft Drill)
+        // Synthesize recipes for Variable Extractors (Mineshaft Drill)
         for (const auto& [ve_id, ve] : db_.variable_extractors) {
             std::string machineName = ve.machine_id;
             if (db_.machines.count(ve.machine_id)) {
@@ -72,10 +72,12 @@ namespace Industrialist {
                     if (cons.mandatory) {
                         RecipeIngredient ing;
                         ing.item_id = cons.item_id.value_or("");
+
                         if (ing.item_id.empty() && !cons.item_name.empty()) {
                             auto resolved = ResolveItemID(db_, cons.item_name);
                             if (resolved) ing.item_id = *resolved;
                         }
+
                         ing.item_name = cons.item_name;
                         double rate = cons.rate_per_s.value_or(0.0);
                         ing.quantity = rate * duration;

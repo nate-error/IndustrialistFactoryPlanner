@@ -139,10 +139,8 @@ def parse_machine_infobox(html: str) -> dict:
                     result["size_height"] = float(h.get_text(strip=True))
 
         elif label.startswith("Product"):
-            # e.g. "Hot <a>Water</a>" -> keep the full display text as the
-            # product name; the wiki treats "Hot Water" as a display-level
-            # variant of the linked base item "Water", not necessarily a
-            # separate item-database entry — flag for validator/normalizer.
+            # e.g. "Hot <a>Water</a>" -> keep the full display text as the product name; the wiki treats "Hot Water" as a display-level variant of the linked base item
+            # "Water", not necessarily a separate item-database entry, flag for validator/normalizer.
             result["products"].append({
                 "text": _text(value_div),
                 "linked_item_slugs": [

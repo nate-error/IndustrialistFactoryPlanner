@@ -27,7 +27,7 @@ MINESHAFT_DRILL_CONSUMABLES = [
     "x Resource Modifier x Speed Modifier), which isn't fully modeled here yet."
 ),
     # "Water" here is one of five interchangeable choices (Water or one of four Acids), the wiki explicitly calls this "Water/most Acids", i.e.
-    # pick exactly one. Consumption rates ARE plainly stated in prose, so these are trustworthy despite being hand-typed.
+    # pick exactly one. Consumption rates are plainly stated in prose, so these are trustworthy despite being hand typed.
     ExtractorConsumable(item_id="water", item_name="Water", mandatory=False, rate_per_s=10.0, affects_yield=False,
                         note="One of 5 mutually exclusive durability-boost options; pick one."),
     ExtractorConsumable(item_id="acetic-acid", item_name="Acetic Acid", mandatory=False, rate_per_s=3.0, affects_yield=False,
@@ -39,12 +39,11 @@ MINESHAFT_DRILL_CONSUMABLES = [
     ExtractorConsumable(item_id="machine-oil", item_name="Machine Oil", mandatory=False, rate_per_s=2.0, affects_yield=True,
         note="+10% resource output at +10% durability loss (roughly break-even resources per drill head over its life); also doubles dig/travel speed.",
     ),
-    # Dynamite deliberately excluded, affects dig SPEED (how fast the target depth is reached) only, not steady state output rate or resource
-    # consumption once at depth. Not relevant to a throughput calculator.
+    # Dynamite deliberately excluded, affects dig speed only, not steady state output rate or resource consumption once at depth. Not relevant to a throughput calculator.
 ]
 
 # The wiki states: "It has 5 outputs, 4 for the outputted items, and 1 for an unused fluid output." That 5th port produces nothing, recorded here
 # so it doesn't look like a scraping gap later, not modeled as a resource.
 MINESHAFT_DRILL_NOTES = [
-    "Machine has a 5th output port (fluid) that is currently unused / outputs nothing.",
+    "Machine has a 5th output port (fluid) that is currently unused / outputs nothing. The outputs are non blocking for this machine",
 ]

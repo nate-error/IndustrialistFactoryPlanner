@@ -9,9 +9,9 @@
 namespace Industrialist {
 
     constexpr double MACHINE_COUNT_PENALTY = 2.0; // Power for the scaling of the machine counts penalty (default to a simple exponential, with machines needed^2)
-    constexpr double BYPRODUCT_PENALTY = 5.0;
+    constexpr double BYPRODUCT_PENALTY = 2.0;
     constexpr double RESIDUE_PENALTY = 100.0;
-    constexpr double INPUT_COMPLEXITY_PENALTY = 5.0;
+    constexpr double INPUT_COMPLEXITY_PENALTY = 2.0;
     constexpr double POWER_PENALTY = 0.00001;
     constexpr double MONEY_PENALTY = 0.00005;
     constexpr double POLLUTION_PENALTY = 0.1;
@@ -68,7 +68,7 @@ namespace Industrialist {
 
         // Structural Complexity Penalties
         // Penalize secondary outputs (extra outputs add unwanted transport/clogging complexity)
-        double byproductPenalty = static_cast<double>(recipe.outputs.size() - 1) * BYPRODUCT_PENALTY;
+        double byproductPenalty = recipe.machine_slug.value() != "Mineshaft_Drill" ? static_cast<double>(recipe.outputs.size() - 1) * BYPRODUCT_PENALTY : 0;
 
         // Extra penalty for unusable or difficult residue items
         double residuePenalty = 0.0;
@@ -104,7 +104,10 @@ namespace Industrialist {
         std::cout << "Recipe: " << recipe.id
             << " | Base Cost Score: " << moneyPenalty
             << " | Inputs Penalty: " << inputComplexityPenalty
-            << " | Per machine rate " << perMachineRate
+            << " | Byproducts Penalty: " << byproductPenalty
+            << " | Residue Penalty: " << residuePenalty
+            << " | Per machine rate: " << perMachineRate
+            << " | Power Penalty: " << powerPenalty
             << " | Machine amount Penalty: " << machineCountPenalty
             << " | Pollution: " << pollutionPenalty 
             << " | TOTAL: " << rateDiff + machineCountPenalty + byproductPenalty + residuePenalty + inputComplexityPenalty + powerPenalty + moneyPenalty + pollutionPenalty
